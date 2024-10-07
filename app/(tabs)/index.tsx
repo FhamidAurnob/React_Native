@@ -1,70 +1,129 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import { Image, StyleSheet, Platform, Text, View, ActivityIndicator } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { Slot, Stack } from 'expo-router';
+import { Link } from 'expo-router';
+import { useEffect, useState } from 'react';
+import * as Location from 'expo-location';
+import { FlatList } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+
+const Forecast_URL = `https://api.openweathermap.org/data/2.5/forecast`;
+const BASE_URL = `https://api.openweathermap.org/data/2.5/weather`;
+const API_KEY = '1c740173f7ce976296f9a5b82d75804d';
+
+type MainWeather = {
+  temp: number;
+  feels_like: number,
+  temp_min: number,
+  temp_max: number,
+  pressure: number,
+  humidity: number,
+  sea_level: number,
+  grnd_level: number
+};
+
+type Weather = {
+  name: string;
+  main: MainWeather
+};
+
+type Forecast = {
+  dt: number;
+  main: MainWeather
+  dt_txt: string;
+};
 
 export default function HomeScreen() {
+
+  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | undefined>();
+  const [weather, setWeather] = useState<Weather>();
+  const [forecast, setForecast] = useState<Forecast[]>();
+
+
+  useEffect(() => {
+    if (location) {
+    fetchWeather();
+    fetchForecast();
+    }
+  }, [location] ); 
+
+  useEffect(() => {
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setErrorMsg('Permission to access location was denied');
+        return;
+      }
+      let location = await Location.getCurrentPositionAsync({});
+      setLocation(location);
+    })();
+  },[]);
+
+  
+  const fetchWeather =async () => {
+    if (!location) {
+      return;
+    }
+    const lat = location?.coords.latitude;
+    const lon = location?.coords.longitude;
+
+    const results = await fetch(`${BASE_URL}?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`);
+    const data = await results.json();
+    setWeather(data);
+  }
+
+  const fetchForecast = async () => {
+    if (!location) {
+      return;
+    }
+    const lat = location?.coords.latitude;
+    const lon = location?.coords.longitude;
+    const cnt = 7;
+    const results = await fetch(`${BASE_URL}?lat=${lat}&lon=${lon}&cnt=${cnt}&appid=${API_KEY}&units=metric`);
+    const data = await results.json();
+    setForecast(data.list);
+  }
+
+  if (!weather) {
+    return <ActivityIndicator />;
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({ ios: 'cmd + d', android: 'cmd + m' })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <GestureHandlerRootView style={styles.container}>
+      <Text style={styles.location}>{weather.name}</Text>
+      <Text style={styles.temp}>{Math.round(weather.main.temp)} °C</Text>
+
+      <FlatList 
+        data={forecast}
+        renderItem={({item}) => (
+          <View>
+            <Text>{Math.round(item.main.temp)} °C</Text>
+          </View>
+        )}
+      />
+    
+    </GestureHandlerRootView>
   );
-}
+};
+    
+
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    backgroundColor: 'white',
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  location: {
+    fontFamily: 'InterSemi',
+    fontSize: 30,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  temp: {
+    fontFamily: 'InterSemi',
+    fontSize: 40,
+    color: 'gray',
   },
 });
